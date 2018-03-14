@@ -2,10 +2,16 @@
 var express = require("express"),
   app = express(),
   bodyParser = require("body-parser"),
-  methodOverride = require("method-override");
+  methodOverride = require("method-override"),
+  cookieParser = require('cookie-parser'),
+  session = require('express-session'),
+  passport = require('passport'),
+  LocalStrategy = require('passport-local').Strategy;
+
 // require Post model
 var db = require("./models"),
-  Post = db.Post;
+  Post = db.Post,
+  User = db.User;
 
 // configure bodyParser (for receiving form data)
 app.use(bodyParser.urlencoded({ extended: true, }));
@@ -19,6 +25,23 @@ app.set("view engine", "ejs");
 app.use(methodOverride("_method"));
 
 
+// middleware for auth
+app.use(cookieParser());
+app.use(session({
+  secret: 'secretkey', // change this!
+  resave: false,
+  saveUninitialized: false
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+
+
+
+// passport config
+passport.use(new LocalStrategy(User.authenticate()));
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
+
 // HOMEPAGE ROUTE
 
 app.get("/", function (req, res) {
@@ -26,7 +49,7 @@ app.get("/", function (req, res) {
     if (err) {
       res.status(500).json({ error: err.message, });
     } else {
-      res.render("index", { posts: allPosts, });
+       res.render("index", { posts: allPosts, user: req.user, });
     }
   });
 });
@@ -42,6 +65,11 @@ app.get("/posts/:id", function(req, res) {
 });
 
 app.post("/posts", function(req, res) {
+
+  if (!req.user) {
+   return res.redirect("/");
+  }
+
   var newPost = new Post(req.body);
 
   // save new post in db
@@ -109,18 +137,20 @@ app.get("/api/posts", function (req, res) {
 
 // create new post
 app.post("/api/posts", function (req, res) {
-  // create new post with form data (`req.body`)
-  var newPost = new Post(req.body);
+  console.log(JSON.stringify(req.user));
+    // create new post with form data (`req.body`)
+    var newPost = new Post(req.body);
 
-  // save new post in db
-  newPost.save(function (err, savedPost) {
-    if (err) {
-      res.status(500).json({ error: err.message, });
-    } else {
-      res.json(savedPost);
-    }
-  });
+    // save new post in db
+    newPost.save(function (err, savedPost) {
+      if (err) {
+        res.status(500).json({ error: err.message, });
+      } else {
+        res.json(savedPost);
+      }
+    });
 });
+
 
 // get one post
 app.get("/api/posts/:id", function (req, res) {
@@ -180,6 +210,42 @@ app.delete("/api/posts/:id", function (req, res) {
       res.json(deletedPost);
     }
   });
+});
+
+app.get('/signup', function(req, res){
+  res.render('signup');
+});
+
+// sign up new user, then log them in
+// hashes and salts password, saves new user to db
+app.post('/signup', function (req, res) {
+  User.register(new User({ username: req.body.username }), req.body.password,
+    function (err, newUser) {
+      passport.authenticate('local')(req, res, function() {
+        res.redirect('/');
+      });
+    }
+  );
+});
+
+// show login view
+app.get('/login', function (req, res) {
+ res.render('login');
+});
+
+// log in user
+app.post('/login', passport.authenticate('local'), function (req, res) {
+  console.log(req.user);
+  // res.send('logged in!!!'); // sanity check
+   res.redirect('/'); // preferred!
+});
+
+
+app.get('/logout', function (req, res) {
+  console.log("BEFORE logout", JSON.stringify(req.user));
+  req.logout();
+  console.log("AFTER logout", JSON.stringify(req.user));
+  res.redirect('/');
 });
 
 

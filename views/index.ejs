@@ -53,6 +53,15 @@
         </form>
         <br>
 
+        <div class="container">
+            <% if(!user) { %>
+            <a href="/login">Log in</a>
+            <a href="/signup">Sign up</a>
+            <% } else { %>
+            <div>Welcome, <%= user.username %>!</div>
+            <a href="/logout">Log out</a>
+            <% } %>
+        </div>
         <!-- list of posts -->
         <ul class="list-group" id="posts-list">
 
